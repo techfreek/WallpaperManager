@@ -1,4 +1,4 @@
 WallpaperManager
 ================
 
-An idea I have. Still a large WIP
+An idea I have. Mostly a proof of concept at the moment
