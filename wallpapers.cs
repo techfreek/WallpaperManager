@@ -14,23 +14,16 @@ namespace WallpaperManager
 {
     class Wallpapers
     {
-        static void indexer(List<string> directories)
+        public static void indexer(List<string> directories)
         {
             List<List<imageNode>> parsedLibrary = null;
             List<bool> previouslyIndexed = null;
 
-            int height = 0;
-            int width = 0;
-            double ratio = 0;
-
-            double screenRatio = 0;
-
-            string[] tempFiles = null;
-            List<List<string>> files = null;
+            List<List<string>> files = new List<List<string>>(directories.Count);
 
             for (int i = 0; i < directories.Count; i++)
             {
-                tempFiles = Directory.GetFiles(directories[i]);
+                files[i] = getFiles(directories[i]);
 
                 if (files[i].Contains("wpmLib.xml"))
                     previouslyIndexed[i] = true;
@@ -38,10 +31,7 @@ namespace WallpaperManager
                     previouslyIndexed[i] = false;
 
                 i++;
-                files.Add(tempFiles.ToList());
             }
-
-
 
             for (int i = 0; i < directories.Count; i++)
             {
@@ -52,7 +42,7 @@ namespace WallpaperManager
             {
                 if (previouslyIndexed.Count() == 0)
                 {
-                    parsedLibrary[i] = newLibrary(directories[i], i);
+                    newLibrary(directories[i], i);
                 }
                 else
                 {
@@ -98,8 +88,8 @@ namespace WallpaperManager
                 }
             }
         }
-    
-        public static List<imageNode> newLibrary(string dirPath, int i)
+
+        private static void newLibrary(string dirPath, int i)
         {
             string[] files = Directory.GetFiles(dirPath);
             int height = 0,
@@ -127,31 +117,12 @@ namespace WallpaperManager
                 }
             }
 
-            /*Console.WriteLine(images.Count + " images indexed.");
-
-            var single = from image in images
-                         where image.aspectRatio <= singeScreenRatio
-                         select image;
-
-            var dbl = from image in images
-                      where (image.aspectRatio > singeScreenRatio && image.aspectRatio <= doubleScreenRatio)
-                      select image;
-
-            var triple = from image in images
-                         where (image.aspectRatio > doubleScreenRatio && image.aspectRatio <= tripleScreenRatio)
-                         select image;
-
-            Console.WriteLine("   " + single.Count() + " single monitor images.");
-            Console.WriteLine("   " + dbl.Count() + " double monitor images.");
-            Console.WriteLine("   " + triple.Count() + " triple monitor images.");*/
-
-
             xmlExport(imageLib[i], dirPath);
         }
 
-        public static List<imageNode> xmlParse(string dirPath)
+        private static List<imageNode> xmlParse(string dirPath)
         {
-            XDocument library = XDocument.Load(dirPath + "\\" + "\\" + "wpmLib.xml");
+            XDocument library = XDocument.Load(dirPath + libraryPath);
             int i = 0;
             var wallpapers = from item in library.Descendants("wallpaper")
                              select new
@@ -173,7 +144,7 @@ namespace WallpaperManager
             return images;
         }
 
-        public static bool xmlExport(List<imageNode> images, string dirPath)
+        private static bool xmlExport(List<imageNode> images, string dirPath)
         {
             XDocument lib = new XDocument(new XElement("wallpapers"));
             var root = lib.Root;
@@ -187,7 +158,7 @@ namespace WallpaperManager
             }
 
 
-            string libPath = dirPath + "\\" + "\\" + "wpmLib.xml";
+            string libPath = dirPath + libraryPath;
 
             if (File.Exists(libPath))
                 File.Delete(libPath);
@@ -199,9 +170,9 @@ namespace WallpaperManager
 
         }
 
-        public static void addToLib(List<string> addedFiles, string dirPath)
+        private static void addToLib(List<string> addedFiles, string dirPath)
         {
-            string filepath = dirPath + "\\" + "\\" + "wpmLib.xml";
+            string filepath = dirPath + libraryPath;
 
             XDocument library = XDocument.Load(filepath);
 
@@ -222,9 +193,9 @@ namespace WallpaperManager
             library.Save(filepath);
         }
 
-        public static void removeFromLib(List<string> removedFiles, string dirPath)
+        private static void removeFromLib(List<string> removedFiles, string dirPath)
         {
-            string filepath = dirPath + "\\" + "\\" + "wpmLib.xml";
+            string filepath = dirPath + libraryPath;
 
             XmlDocument library = new XmlDocument();
             library.Load(filepath);
@@ -266,6 +237,35 @@ namespace WallpaperManager
             return images;
         }
 
+        private static List<string> getFiles(string directory)
+        {
+            List<string> files = null;
+            List<string> directories = null;
+            string[] tempFiles = null;
+            string[] tempDir = null;
+
+            if (recursiveImport)
+            {
+                tempDir = Directory.GetDirectories(directory);
+                directories = tempDir.ToList();
+                foreach (string dir in directories)
+                {
+                    files.AddRange(getFiles(dir));
+                }
+                tempFiles = Directory.GetFiles(directory);
+                files.AddRange(tempFiles.ToList());
+            }
+            else
+            {
+                tempFiles = Directory.GetFiles(directory);
+                files = tempFiles.ToList();
+            }
+
+            return files;
+        }
+
+        private static string libraryPath = "\\" + "\\" + "wpmLib.xml";
+        public static bool recursiveImport { get; set; }
         public static List<string> libPath { get; set; }
         public static List<List<imageNode>> imageLib { get; set; }
     }
