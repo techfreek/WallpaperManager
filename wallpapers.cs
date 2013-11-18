@@ -9,6 +9,7 @@ using System.Windows;
 using System.Drawing;
 using System.Xml;
 using System.Xml.Linq;
+using System.Diagnostics;
 
 namespace WallpaperManager
 {
@@ -19,6 +20,7 @@ namespace WallpaperManager
             libPath = directories;
             recursiveImport = recursion;
             imageLib = new List<List<imageNode>>();
+            libFiles = new List<List<string>>();
         }
 
         public Wallpapers()
@@ -29,6 +31,12 @@ namespace WallpaperManager
 
         public void indexer()
         {
+            Stopwatch fileRead = new Stopwatch(),
+                XMLoutput = new Stopwatch(),
+                buildTime = new Stopwatch(),
+                addTime = new Stopwatch(),
+                removeTime = new Stopwatch();
+
             List<List<imageNode>> parsedLibrary = new List<List<imageNode>>();
             List<bool> previouslyIndexed = new List<bool>();
 
@@ -39,8 +47,9 @@ namespace WallpaperManager
             {
                 files.Add(new List<string>());
                 parsedLibrary.Add(new List<imageNode>());
-                previouslyIndexed.Add(new bool());
+                previouslyIndexed.Add(false);
                 imageLib.Add(new List<imageNode>());
+                libFiles.Add(new List<string>());
             }
 
             //I am utilizing for loops due to the number of lists I am using
@@ -48,29 +57,36 @@ namespace WallpaperManager
             {
                 //Gives the filename of the library, so we don't have to scan inside each filename
                 string libFilePath = libPath[i] + "\\" + "wpmLib.xml";
-                files[i].AddRange(getFiles(libPath[i]));
 
-                if (files[i].Contains(libFilePath))
-                    previouslyIndexed[i] = true;
-                else
-                    previouslyIndexed[i] = false;
+                fileRead.Start();
+                libFiles[i].AddRange(getFiles(libPath[i]));
+                fileRead.Stop();
+
+                if (libFiles[i].Contains(libFilePath))
+                {
+                    parsedLibrary[i] = xmlParse(libPath[i]); //At times, the library can exist, but remain empty
+                    if (parsedLibrary[i] != null)
+                    {
+                        previouslyIndexed[i] = true;
+                    }
+                    
+                }
             }
 
             for (int i = 0; i < libPath.Count(); i++)
             {
                 if (!previouslyIndexed[i])
                 {
+                    buildTime.Start();
                     newLibrary(libPath[i], i);
+                    buildTime.Stop();
+
+                    xmlExport(libPath[i], i);
+                    Console.WriteLine("Library build time: " + buildTime.Elapsed);
                 }
                 else
                 {
-                    parsedLibrary[i] = xmlParse(libPath[i]);
-
-                    //Algorithm: looks at every inputted filepath, and if the scanned files doesn't contain that file path, add it to a list
-                    var removedFiles = from wallpaper in parsedLibrary[i]
-                                       where (!files[i].Contains(wallpaper.filePath))
-                                       select wallpaper.filePath;
-
+                    addTime.Start();
                     List<string> libraryFiles = new List<string>();
 
                     foreach (var wallpaper in parsedLibrary[i])
@@ -78,10 +94,13 @@ namespace WallpaperManager
                         libraryFiles.Add(wallpaper.filePath);
                     }
 
+                    
                     //Algorithm: Looks at every image file that has been scanned in, and not inputted into the library
-                    var addedFiles = from file in files[i]
+                    var addedFiles = from file in libFiles[i]
                                      where ((!libraryFiles.Contains(file)) && ((file.Contains(".png") || file.Contains(".jpg"))))
                                      select file;
+
+                    imageLib[i].AddRange(parsedLibrary[i]);
 
                     if (addedFiles.Count() > 0)
                     {   //addedFiles is a temporary var, so I needed to convert it to a more permanent variable so I could add it to the library
@@ -90,8 +109,15 @@ namespace WallpaperManager
                         {
                             aFiles.Add(file.ToString());
                         }
-                        addToLib(aFiles, libPath[i]);
+                        addToLib(aFiles, libPath[i], i);
                     }
+                    addTime.Stop();
+
+                    removeTime.Start();
+                    //Algorithm: looks at every inputted filepath, and if the scanned files doesn't contain that file path, add it to a list
+                    var removedFiles = from wallpaper in parsedLibrary[i]
+                                       where (!libFiles[i].Contains(wallpaper.filePath))
+                                       select wallpaper.filePath;
 
                     if (removedFiles.Count() > 0)
                     {
@@ -100,32 +126,34 @@ namespace WallpaperManager
                         {
                             rFiles.Add(file.ToString());
                         }
-                        removeFromLib(rFiles, libPath[i]);
+                        removeFromLib(rFiles, libPath[i], i);
                     }
+                    removeTime.Stop();
 
                     //Remove unneeded data
                     libraryFiles.Clear();
 
-                    imageLib[i] = parsedLibrary[i];
+                    Console.WriteLine("Add time: " + addTime.Elapsed);
+                    Console.WriteLine("Remove time: " + removeTime.Elapsed);
                 }
+                
             }
         }
 
         private static void newLibrary(string dirPath, int i)
         {
-            string[] files = Directory.GetFiles(dirPath); //GetFiles only exports to string[] :(
             imageLib[i] = new List<imageNode>();
+            string fileType = "";            
 
-            foreach (string img in files)
+            foreach (string img in libFiles[i])
             {
-                if (img.Contains(".png") || img.Contains(".jpg"))
+                fileType = Path.GetExtension(img);
+                if (fileType.Equals(".png") || fileType.Equals(".jpg"))
                 {
                     imageNode newImage = getEXIF(img);
                     imageLib[i].Add(newImage);
                 }
             }
-
-            xmlExport(imageLib[i], dirPath);
         }
 
         private static List<imageNode> xmlParse(string dirPath)
@@ -143,25 +171,29 @@ namespace WallpaperManager
 
             //Not saved directly to imageLib as more processing is needed
             List<imageNode> images = new List<imageNode>();
+            string tempAspect = "";
 
             foreach (var wallpaper in wallpapers)
             {
                 imageNode image = new imageNode();
-                image.aspectRatio = Convert.ToDouble(wallpaper.aspectRatio.Value);
                 image.filePath = wallpaper.filepath.Value.ToString();
+                tempAspect = wallpaper.aspectRatio.Value.ToString();
+                image.aspectRatio = Convert.ToDouble(wallpaper.aspectRatio.Value.ToString());
                 images.Add(image);
             }
+            if (images.Count() == 0)
+                return null;
 
             return images;
         }
 
-        private static bool xmlExport(List<imageNode> images, string dirPath)
+        private static bool xmlExport(string dirPath, int i)
         {
             //1 library per root folder, so exported individually (at least to avoid confusion)
             XDocument lib = new XDocument(new XElement("wallpapers"));
             var root = lib.Root;
 
-            foreach (imageNode image in images)
+            foreach (imageNode image in imageLib[i])
             {
                 root.Add(new XElement("wallpaper",
                                 new XElement("filepath", image.filePath),
@@ -175,6 +207,7 @@ namespace WallpaperManager
             if (File.Exists(libPath))
                 File.Delete(libPath);
 
+            
             lib.Save(libPath);
             
             //Hides the file from power users
@@ -186,9 +219,7 @@ namespace WallpaperManager
         private static void addToLib(List<string> addedFiles, string dirPath, int libIndex)
         {
             string filepath = dirPath + libraryPath;
-
             XDocument library = XDocument.Load(filepath);
-
             var root = library.Root;
 
             foreach (string file in addedFiles)
@@ -207,6 +238,7 @@ namespace WallpaperManager
             //overwriting operations
             File.Delete(filepath);
             library.Save(filepath);
+            File.SetAttributes(filepath, FileAttributes.Hidden);
         }
 
         private static void removeFromLib(List<string> removedFiles, string dirPath, int libIndex)
@@ -242,7 +274,9 @@ namespace WallpaperManager
                 }
             }
 
+            File.Delete(filepath);
             library.Save(filepath);
+            File.SetAttributes(filepath, FileAttributes.Hidden);
         }
 
         //Gets a list of wallpapers that match a specified number of monitors
@@ -271,13 +305,11 @@ namespace WallpaperManager
 
         private static imageNode getEXIF(string filename)
         {
-            //A few functions call on this, makes it easier than updating code in a few places. Also will be easier when I add win8 support
+            //A few functions call on this, makes it easier than updating code in a few places.
             imageNode newImage = new imageNode();
-            Image currIMG = Image.FromFile(filename); //According to initial research, Image in this format is not supported in Win8, need to find new method
+            Image currIMG = Image.FromFile(filename);
 
-            int height = currIMG.Height;
-            int width = currIMG.Width;
-            double ratio = (double)width / height;
+            double ratio = (double)currIMG.Width / currIMG.Height;
             ratio = Math.Round(ratio, 2); //Accuracy is not too crucial here
 
             newImage.filePath = filename;
@@ -297,14 +329,17 @@ namespace WallpaperManager
             {
                 tempDir = Directory.GetDirectories(directory);
                 directories = tempDir.ToList();
+                
+                //Add local files to list
+                tempFiles = Directory.GetFiles(directory);
+                files = tempFiles.ToList();
+
                 foreach (string dir in directories)
                 {
                     //Each getFiles returns a list of all the files, and we can merge to the existing list with AddRange
                     files.AddRange(getFiles(dir));
+                    
                 }
-                //Add local files to list
-                tempFiles = Directory.GetFiles(directory);
-                files.AddRange(tempFiles.ToList());
             }
             else
             {
@@ -312,7 +347,6 @@ namespace WallpaperManager
                 tempFiles = Directory.GetFiles(directory);
                 files = tempFiles.ToList();
             }
-
             return files;
         }
 
@@ -323,6 +357,7 @@ namespace WallpaperManager
         public static bool recursiveImport { get; set; }
         public static List<string> libPath { get; set; }
         public static List<List<imageNode>> imageLib { get; set; }
+        public static List<List<string>> libFiles { get; set; }
     }
 
     

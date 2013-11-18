@@ -24,7 +24,7 @@ namespace WallpaperManager
             //Counts how many monitors are currently connected (this is updated live, so I can use this to rescan later, some other methods are constant...)
             numScreens = System.Windows.Forms.SystemInformation.MonitorCount;
 
-            Console.WriteLine("You have " + numScreens + " screens");
+            Console.WriteLine("You have " + numScreens + " screen(s)");
 
             //Attempts to parse settings. If it is succesful, the app has been configured before
             if (parseSettings())
@@ -45,7 +45,7 @@ namespace WallpaperManager
             library = new Wallpapers(directories, recursive);
 
             library.indexer();
-
+            
             libraryStats(library);
 
         }
@@ -78,7 +78,7 @@ namespace WallpaperManager
 
             directories = dirs;
 
-            Console.Write("Scan recursively? (Y/N)");
+            Console.Write("Scan recursively? (Y/N): ");
             consoleInput = Console.ReadLine();
 
             if (consoleInput.ToLower().Contains("y"))
@@ -91,7 +91,7 @@ namespace WallpaperManager
             }
 
             //Idea borrowed from windows where it can disable on battery
-            Console.Write("Run on battery power? (Y/N)");
+            Console.Write("Run on battery power? (Y/N): ");
             consoleInput = Console.ReadLine();
 
             if (consoleInput.ToLower().Contains("y"))
