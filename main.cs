@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
@@ -23,7 +24,7 @@ namespace WallpaperManager
 
             //Counts how many monitors are currently connected (this is updated live, so I can use this to rescan later, some other methods are constant...)
             numScreens = System.Windows.Forms.SystemInformation.MonitorCount;
-
+            
             Console.WriteLine("You have " + numScreens + " screen(s)");
 
             //Attempts to parse settings. If it is succesful, the app has been configured before
@@ -47,6 +48,13 @@ namespace WallpaperManager
             library.indexer();
             
             libraryStats(library);
+
+            List<string> queuedWallpapers = newWallpapers(library);
+            for (int i = 0; i < queuedWallpapers.Count(); i++)
+            {
+                Console.WriteLine("Next wallpaper: " + queuedWallpapers[i]);
+            }
+            displayWallpaper(queuedWallpapers);
 
         }
 
@@ -142,6 +150,40 @@ namespace WallpaperManager
             }
             //If settings don't exist, then the app has not been run before
             return false;             
+        }
+
+        static void displayWallpaper(List<string> images)
+        {
+            string consoleInput = "";
+            desktop image = new desktop(images[0]);
+            image.changeImage();            
+            Thread picture = new Thread(new ThreadStart(image.start));
+            picture.Start();
+
+            Console.Write("Press enter to exit ");
+            consoleInput = Console.ReadLine();
+            picture.Abort();
+            
+            //Thread wallpapers = new Thread(new ThreadStart(image.Show));
+        }
+
+        static List<string> newWallpapers(Wallpapers library)
+        {
+            Random rand = new Random();
+            int wallpaperSize = rand.Next(1, numScreens);
+            int randInt = 0;
+
+            List<string> wallPaperCandidates = library.getImageOfWidth(wallpaperSize);
+            List<string> newWallpapers = new List<string>();
+
+            for (int i = 0; i < wallpaperSize; i++)
+            {
+                Random nextWallpaper = new Random();
+                randInt = nextWallpaper.Next(0, wallPaperCandidates.Count());
+
+                newWallpapers.Add(wallPaperCandidates[randInt]);
+            }
+            return newWallpapers;
         }
 
         static void saveSettings()
