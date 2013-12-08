@@ -18,9 +18,14 @@ namespace WallpaperManager
         {
             string consoleInput = null;
             bool existingSettings = false;
-            Wallpapers library = null; 
+            Wallpapers library = null;
+
+            //MessageBox.Show("Fatal Error: Out of Memory", "Wallpaper Manager", MessageBoxButtons.OK); //Wanted to see how to make an error message
 
             Console.WriteLine("Enter 'exit' at anytime to quit the current operation");
+
+            menu main = new menu();
+            main.Show();
 
             //Counts how many monitors are currently connected (this is updated live, so I can use this to rescan later, some other methods are constant...)
             numScreens = System.Windows.Forms.SystemInformation.MonitorCount;
@@ -156,13 +161,15 @@ namespace WallpaperManager
         {
             string consoleInput = "";
             desktop image = new desktop(images[0]);
-            image.changeImage();            
-            Thread picture = new Thread(new ThreadStart(image.start));
-            picture.Start();
+            image.changeImage();
+            image.start();
+            Thread.Sleep(1000);
+            //Thread picture = new Thread(new ThreadStart(image.start));
+            //picture.Start();
 
             Console.Write("Press enter to exit ");
             consoleInput = Console.ReadLine();
-            picture.Abort();
+            //picture.Abort();
             
             //Thread wallpapers = new Thread(new ThreadStart(image.Show));
         }
